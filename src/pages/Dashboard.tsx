@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DatabaseService } from '../services/databaseService';
 import { Trash2, Play, Loader2 } from 'lucide-react';
+import { createCheckoutSession } from '../../services/paymentService';
 
 interface Video {
   id: string;
@@ -72,9 +73,29 @@ export default function Dashboard({ onVideoSelect }: DashboardProps) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold mb-2">Your Videos</h2>
-        <p className="text-gray-400">Manage and view your uploaded videos</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Your Videos</h2>
+          <p className="text-gray-400">Manage and view your uploaded videos</p>
+        </div>
+        <div>
+          <button
+            onClick={async () => {
+              try {
+                const priceId = import.meta.env.VITE_STRIPE_PRICE_ID || '';
+                if (!priceId) return alert('No price id configured. Set VITE_STRIPE_PRICE_ID in env.');
+                const data = await createCheckoutSession(priceId);
+                if (data?.url) window.location.href = data.url;
+                else alert('Failed to create checkout session');
+              } catch (err: any) {
+                alert(err?.message || 'Checkout failed');
+              }
+            }}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+          >
+            Buy Credits
+          </button>
+        </div>
       </div>
 
       {error && (
