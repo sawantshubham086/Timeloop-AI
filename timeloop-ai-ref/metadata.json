@@ -1,0 +1,5 @@
+{
+  "name": "TimeLoop AI",
+  "description": "Upload a video to reverse-engineer its perfect AI generation prompt using Gemini 2.5 Vision capabilities.",
+  "requestFramePermissions": []
+}
