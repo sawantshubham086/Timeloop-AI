@@ -71,7 +71,7 @@ const PricingCard: React.FC<PricingCardProps> = ({ tier, isCurrentPlan, onSelect
         </button>
       ) : (
         <button
-          onClick={() => onSelect(plan.id)}
+          onClick={() => onSelect(tier)}
           disabled={isLoading}
           className={`w-full py-2 rounded-lg font-semibold transition ${isPremium
             ? 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50'
