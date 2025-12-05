@@ -117,7 +117,12 @@ export const SubscriptionPlansSection: React.FC<SubscriptionPlansSectionProps> =
     setIsLoading(true);
     try {
       const plan = SUBSCRIPTION_PLANS[planId];
-      if (!plan) throw new Error('Invalid plan');
+      if (!plan) {
+        console.error('Invalid plan selected', { planId, availablePlans: Object.keys(SUBSCRIPTION_PLANS) });
+        // provide more info to user for debugging
+        alert(`Invalid plan selected: ${String(planId)}\nSee console for details.`);
+        throw new Error('Invalid plan');
+      }
 
       if (plan.price === 0) {
         // Free trial - no payment needed, just update DB
