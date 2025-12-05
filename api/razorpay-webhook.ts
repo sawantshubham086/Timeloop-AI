@@ -1,6 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'crypto';
-import { buffer } from 'micro';
+
+// Lightweight helper to read raw request body without adding the `micro` dependency.
+const getRawBody = (req: any): Promise<Buffer> => {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', (err: any) => reject(err));
+  });
+};
 
 export const config = {
   api: {
@@ -21,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // Read raw body for signature verification
-    const rawBody = await buffer(req);
+    const rawBody = await getRawBody(req);
     const payload = rawBody.toString('utf8');
     const signature = req.headers['x-razorpay-signature'] as string | undefined;
 

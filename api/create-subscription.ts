@@ -59,12 +59,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       subscriptionOptions.customer_id = customerId;
     }
 
-    // Create subscription with embedded plan details
-    const subscription = await razorpay.subscriptions.create({
-      plan_id: undefined, // Subscriptions require plan_id, we'll create it first
-      ...subscriptionOptions,
-    } as any);
-
     // If plan_id undefined error, create inline subscription using invoices
     // Alternative: Create subscription directly with amount (newer API)
     const directSubscription = await (razorpay as any).subscriptions.create({
