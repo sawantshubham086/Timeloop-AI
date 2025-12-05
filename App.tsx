@@ -5,10 +5,17 @@ import PromptDisplay from './components/PromptDisplay';
 import { analyzeVideoContent } from './services/geminiService.proxy';
 import { supabase } from './src/lib/supabaseClient';
 import LoginPage from './src/pages/LoginPage';
-import { ScanEye, RefreshCw, X, ArrowDown, Aperture, Layers, Play, Zap, LogOut } from 'lucide-react';
+import PricingPage from './src/pages/PricingPage';
+import { ScanEye, RefreshCw, X, ArrowDown, Aperture, Layers, Play, Zap, LogOut, CreditCard } from 'lucide-react';
+
+enum ViewState {
+  MAIN = 'main',
+  PRICING = 'pricing'
+}
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
+  const [viewState, setViewState] = useState<ViewState>(ViewState.MAIN);
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -214,6 +221,14 @@ const App: React.FC = () => {
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-400">{userEmail}</span>
             <button 
+              onClick={() => setViewState(ViewState.PRICING)}
+              className="flex items-center gap-2 px-4 py-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-sm font-medium text-indigo-400 transition-colors backdrop-blur-sm"
+              title="View subscription plans"
+            >
+              <CreditCard className="w-4 h-4" />
+              Pricing
+            </button>
+            <button 
               onClick={handleLogout}
               className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-sm font-medium transition-colors backdrop-blur-sm"
             >
@@ -227,8 +242,13 @@ const App: React.FC = () => {
       {/* --- Main Content Switcher --- */}
       <main className="relative z-10 pt-20">
         
+        {/* ================= PRICING VIEW ================= */}
+        {viewState === ViewState.PRICING && (
+          <PricingPage onBack={() => setViewState(ViewState.MAIN)} />
+        )}
+
         {/* ================= LANDING VIEW ================= */}
-        {appState === AppState.IDLE && (
+        {viewState === ViewState.MAIN && appState === AppState.IDLE && (
           <div className="flex flex-col">
             
             {/* Hero Section */}
@@ -312,7 +332,7 @@ const App: React.FC = () => {
         )}
 
         {/* ================= WORKSPACE VIEW ================= */}
-        {appState !== AppState.IDLE && (
+        {viewState === ViewState.MAIN && appState !== AppState.IDLE && (
           <div className="max-w-7xl mx-auto px-4 py-10 min-h-[85vh] flex flex-col items-center animate-in fade-in duration-700">
             
             {/* State: PREVIEW */}

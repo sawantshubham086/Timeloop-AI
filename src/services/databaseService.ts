@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
-import { AnalysisResult } from '../types';
+import { AnalysisResult, UserSubscription, SubscriptionStatus, SubscriptionTier } from '../../types';
 
 export class DatabaseService {
   /**
@@ -177,30 +177,6 @@ export class DatabaseService {
   }
 
   /**
-   * Check if user can upload (quota check)
-   */
-  static async canUploadVideo(): Promise<boolean> {
-    const profile = await this.getUserProfile();
-    return profile.videos_used < profile.videos_quota;
-  }
-
-  /**
-   * Increment videos used count
-   */
-  static async incrementVideosUsed() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-
-    const profile = await this.getUserProfile();
-    const { error } = await supabase
-      .from('profiles')
-      .update({ videos_used: profile.videos_used + 1 })
-      .eq('id', user.id);
-
-    if (error) throw error;
-  }
-
-  /**
    * Delete video and associated data
    */
   static async deleteVideo(videoId: string) {
@@ -228,5 +204,185 @@ export class DatabaseService {
 
     if (error) throw error;
     return data;
+  }
+
+  // ==================== SUBSCRIPTION METHODS ====================
+
+  /**
+   * Get user's current subscription
+   */
+  static async getUserSubscription(): Promise<UserSubscription | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows
+    return data || null;
+  }
+
+  /**
+   * Create a new subscription record
+   */
+  static async createSubscription(
+    tier: SubscriptionTier,
+    billingCycle: 'monthly' | 'yearly',
+    razorpaySubscriptionId?: string,
+    razorpayCustomerId?: string
+  ): Promise<UserSubscription> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const startDate = new Date();
+    const endDate = new Date();
+
+    if (tier === SubscriptionTier.FREE_TRIAL) {
+      // Free trial: 14 days
+      endDate.setDate(endDate.getDate() + 14);
+    } else if (billingCycle === 'monthly') {
+      endDate.setMonth(endDate.getMonth() + 1);
+    } else {
+      endDate.setFullYear(endDate.getFullYear() + 1);
+    }
+
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .insert({
+        user_id: user.id,
+        tier,
+        billing_cycle: billingCycle,
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString(),
+        renewal_date: endDate.toISOString(),
+        status: tier === SubscriptionTier.FREE_TRIAL ? 'on_trial' : 'active',
+        razorpay_subscription_id: razorpaySubscriptionId,
+        razorpay_customer_id: razorpayCustomerId,
+        videos_used_this_month: 0,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  /**
+   * Get subscription status for current user
+   */
+  static async getSubscriptionStatus(): Promise<SubscriptionStatus> {
+    const subscription = await this.getUserSubscription();
+    const profile = await this.getUserProfile();
+
+    if (!subscription) {
+      // No active subscription, return free trial if within 14 days of signup
+      const createdAt = new Date(profile.created_at);
+      const now = new Date();
+      const daysElapsed = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+      const isOnFreeTrial = daysElapsed <= 14;
+
+      return {
+        tier: SubscriptionTier.FREE_TRIAL,
+        status: isOnFreeTrial ? 'on_trial' : 'expired',
+        videosUsedThisMonth: profile.videos_used_this_month || 0,
+        videoLimit: 5,
+        daysRemaining: Math.max(0, 14 - daysElapsed),
+      };
+    }
+
+    const renewalDate = new Date(subscription.renewal_date);
+    const now = new Date();
+    const daysRemaining = Math.floor((renewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    return {
+      tier: subscription.tier,
+      status: subscription.status,
+      videosUsedThisMonth: subscription.videos_used_this_month,
+      videoLimit: this.getVideoLimitForTier(subscription.tier),
+      daysRemaining: Math.max(0, daysRemaining),
+      renewalDate: subscription.renewal_date,
+      nextBillingDate: subscription.renewal_date,
+    };
+  }
+
+  /**
+   * Get video limit for a subscription tier
+   */
+  static getVideoLimitForTier(tier: SubscriptionTier): number {
+    switch (tier) {
+      case SubscriptionTier.FREE_TRIAL:
+        return 5;
+      case SubscriptionTier.BASIC:
+        return 50;
+      case SubscriptionTier.PREMIUM:
+        return 999999; // Unlimited
+      default:
+        return 5;
+    }
+  }
+
+  /**
+   * Check if user can upload a video
+   */
+  static async canUploadVideo(): Promise<boolean> {
+    const status = await this.getSubscriptionStatus();
+    return status.videosUsedThisMonth < status.videoLimit;
+  }
+
+  /**
+   * Increment videos used this month
+   */
+  static async incrementVideosUsedThisMonth() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const subscription = await this.getUserSubscription();
+    if (subscription) {
+      const { error } = await supabase
+        .from('subscriptions')
+        .update({ videos_used_this_month: subscription.videos_used_this_month + 1 })
+        .eq('id', subscription.id);
+      if (error) throw error;
+    }
+  }
+
+  /**
+   * Cancel subscription
+   */
+  static async cancelSubscription() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const subscription = await this.getUserSubscription();
+    if (!subscription) throw new Error('No active subscription to cancel');
+
+    const { error } = await supabase
+      .from('subscriptions')
+      .update({ status: 'cancelled' })
+      .eq('id', subscription.id);
+
+    if (error) throw error;
+  }
+
+  /**
+   * Reset videos count at month start
+   */
+  static async resetMonthlyVideoCount() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const { error } = await supabase
+      .from('subscriptions')
+      .update({ videos_used_this_month: 0 })
+      .eq('user_id', user.id)
+      .eq('status', 'active');
+
+    if (error) throw error;
   }
 }

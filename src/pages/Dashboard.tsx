@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { DatabaseService } from '../services/databaseService';
 import { Trash2, Play, Loader2 } from 'lucide-react';
 import { createCheckoutSession } from '../../services/paymentService';
+import { SubscriptionStatus } from '../../types';
+import SubscriptionStatusDisplay from '../../components/SubscriptionStatusDisplay';
 
 interface Video {
   id: string;
@@ -17,11 +19,14 @@ interface DashboardProps {
 
 export default function Dashboard({ onVideoSelect }: DashboardProps) {
   const [videos, setVideos] = useState<Video[]>([]);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     loadVideos();
+    loadSubscriptionStatus();
   }, []);
 
   const loadVideos = async () => {
@@ -33,6 +38,18 @@ export default function Dashboard({ onVideoSelect }: DashboardProps) {
       setError(err instanceof Error ? err.message : 'Failed to load videos');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSubscriptionStatus = async () => {
+    try {
+      setSubscriptionLoading(true);
+      const status = await DatabaseService.getSubscriptionStatus();
+      setSubscriptionStatus(status);
+    } catch (err) {
+      console.error('Failed to load subscription:', err);
+    } finally {
+      setSubscriptionLoading(false);
     }
   };
 
@@ -73,6 +90,9 @@ export default function Dashboard({ onVideoSelect }: DashboardProps) {
 
   return (
     <div className="space-y-6">
+      {/* Subscription Status Card */}
+      <SubscriptionStatusDisplay status={subscriptionStatus} loading={subscriptionLoading} />
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold mb-2">Your Videos</h2>
@@ -93,7 +113,7 @@ export default function Dashboard({ onVideoSelect }: DashboardProps) {
             }}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
           >
-            Buy Credits
+            Buy Credits (Stripe)
           </button>
         </div>
       </div>
