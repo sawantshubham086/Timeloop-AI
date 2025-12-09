@@ -81,3 +81,21 @@ export const openRazorpayCheckout = (options: RazorpayCheckoutOptions): Promise<
     rzp.open();
   });
 };
+
+export const startFreeTrialSubscription = async (token: string) => {
+  const res = await fetch('/api/start-free-trial', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error || 'Failed to start free trial');
+  }
+
+  const data = await res.json();
+  return data;
+};

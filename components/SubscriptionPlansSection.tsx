@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Check, X, Zap, Crown, Gift } from 'lucide-react';
 import { SubscriptionTier, BillingCycle, SubscriptionStatus } from '../types';
 import { SUBSCRIPTION_PLANS } from '../constants/subscriptionPlans';
-import { createRazorpayOrder, openRazorpayCheckout } from '../services/paymentService';
+import { createRazorpayOrder, openRazorpayCheckout, startFreeTrialSubscription } from '../services/paymentService';
+import { supabase } from '../src/lib/supabaseClient';
 
 interface PricingCardProps {
   tier: string;
@@ -125,11 +126,16 @@ export const SubscriptionPlansSection: React.FC<SubscriptionPlansSectionProps> =
       }
 
       if (plan.price === 0) {
-        // Free trial - no payment needed, just update DB
+        // Free trial - call backend to create subscription
         console.log('Starting free trial...');
-        // TODO: Call backend to create free trial subscription
-        // await createFreeTrialSubscription();
-        alert('Free trial started! (Backend integration needed)');
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          throw new Error('User not authenticated');
+        }
+        
+        const result = await startFreeTrialSubscription(session.access_token);
+        console.log('Free trial subscription created:', result);
+        alert('🎉 Free trial started! You now have 14 days to try all features.');
         onSubscriptionSuccess?.();
       } else {
         // Paid plan - create Razorpay order

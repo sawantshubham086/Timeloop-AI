@@ -27,8 +27,8 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
     billingCycle: BillingCycle.MONTHLY,
     name: 'Basic Monthly',
     description: 'Perfect for content creators',
-    price: 99900, // ₹999 in paise
-    priceDisplay: '₹999/month',
+    price: 100, // ₹1 in paise
+    priceDisplay: '₹1/month',
     features: [
       '50 videos/month',
       'Standard scene analysis',
