@@ -1,5 +1,6 @@
 import { SubscriptionPlan, SubscriptionTier, BillingCycle } from '../types';
 
+// Cache bust: 2025-12-09 update
 export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
   FREE_TRIAL: {
     id: 'free_trial',
